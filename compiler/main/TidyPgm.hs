@@ -770,6 +770,7 @@ dffvExpr (Var v)              = insert v
 dffvExpr (App e1 e2)          = dffvExpr e1 >> dffvExpr e2
 dffvExpr (Lam v e)            = extendScope v (dffvExpr e)
 dffvExpr (Tick (Breakpoint _ ids) e) = mapM_ insert ids >> dffvExpr e
+dffvExpr (Tick (Tracepoint _ ids) e) = error "todo: implement dffvExpr for tracepoints"
 dffvExpr (Tick _other e)    = dffvExpr e
 dffvExpr (Cast e _)           = dffvExpr e
 dffvExpr (Let (NonRec x r) e) = dffvBind (x,r) >> extendScope x (dffvExpr e)

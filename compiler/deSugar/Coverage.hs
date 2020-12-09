@@ -200,6 +200,7 @@ writeMixEntries dflags mod count entries filename
 data TickDensity
   = TickForCoverage       -- for Hpc
   | TickForBreakPoints    -- for GHCi
+  | TickForTracePoints    -- for tracing
   | TickAllFunctions      -- for -prof-auto-all
   | TickTopFunctions      -- for -prof-auto-top
   | TickExportedFunctions -- for -prof-auto-exported
@@ -211,6 +212,7 @@ mkDensity tickish dflags = case tickish of
   HpcTicks             -> TickForCoverage
   SourceNotes          -> TickForCoverage
   Breakpoints          -> TickForBreakPoints
+  Tracepoints          -> TickForTracePoints
   ProfNotes ->
     case profAuto dflags of
       ProfAutoAll      -> TickAllFunctions
@@ -229,6 +231,7 @@ shouldTickBind  :: TickDensity
 
 shouldTickBind density top_lev exported _simple_pat inline
  = case density of
+      TickForTracePoints    -> False
       TickForBreakPoints    -> False
         -- we never add breakpoints to simple pattern bindings
         -- (there's always a tick on the rhs anyway).
@@ -241,6 +244,7 @@ shouldTickBind density top_lev exported _simple_pat inline
 shouldTickPatBind :: TickDensity -> Bool -> Bool
 shouldTickPatBind density top_lev
   = case density of
+      TickForTracePoints    -> False
       TickForBreakPoints    -> False
       TickAllFunctions      -> True
       TickTopFunctions      -> top_lev
@@ -1036,11 +1040,12 @@ data TickTransEnv = TTE { fileName     :: FastString
 
 --      deriving Show
 
-data TickishType = ProfNotes | HpcTicks | Breakpoints | SourceNotes
+data TickishType = ProfNotes | HpcTicks | Breakpoints | Tracepoints | SourceNotes
                  deriving (Eq)
 
 coveragePasses :: DynFlags -> [TickishType]
 coveragePasses dflags =
+    ifa (tracepointsEnabled dflags)          Tracepoints $
     ifa (breakpointsEnabled dflags)          Breakpoints $
     ifa (gopt Opt_Hpc dflags)                HpcTicks $
     ifa (gopt Opt_SccProfilingOn dflags &&
@@ -1052,6 +1057,10 @@ coveragePasses dflags =
 -- | Should we produce 'Breakpoint' ticks?
 breakpointsEnabled :: DynFlags -> Bool
 breakpointsEnabled dflags = hscTarget dflags == HscInterpreted
+
+-- | Should we produce 'Tracepoint' ticks?
+tracepointsEnabled :: DynFlags -> Bool
+tracepointsEnabled dflags = hscTarget dflags == HscInterpreted
 
 -- | Tickishs that only make sense when their source code location
 -- refers to the current file. This might not always be true due to
@@ -1239,6 +1248,8 @@ mkTickish boxLabel countEntries topOnly pos fvs decl_path = do
       setState $ \st -> st { tickBoxCount = c + 1
                            , mixEntries = me:mixEntries st }
       return $ Breakpoint c ids
+
+    Tracepoints -> error "todo: implement coverage logic for tracepoints"
 
     SourceNotes | RealSrcSpan pos' <- pos ->
       return $ SourceNote pos' cc_name

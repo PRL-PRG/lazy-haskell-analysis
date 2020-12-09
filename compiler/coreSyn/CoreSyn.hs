@@ -990,6 +990,11 @@ data Tickish id =
                                 --   (uses same names as CCs)
     }
 
+  | Tracepoint
+    { tracepointId  :: !Int
+    , tracepointFVs :: [id]
+    }
+
   deriving (Eq, Ord, Data)
 
 -- | A "counting tick" (where tickishCounts is True) is one that
@@ -1004,6 +1009,7 @@ tickishCounts :: Tickish id -> Bool
 tickishCounts n@ProfNote{} = profNoteCount n
 tickishCounts HpcTick{}    = True
 tickishCounts Breakpoint{} = True
+tickishCounts Tracepoint{} = True
 tickishCounts _            = False
 
 
@@ -1078,6 +1084,7 @@ tickishScoped Breakpoint{} = CostCentreScope
    -- Breakpoints are scoped: eventually we're going to do call
    -- stacks, but also this helps prevent the simplifier from moving
    -- breakpoints around and changing their result type (see #1531).
+tickishScoped Tracepoint{} = CostCentreScope
 tickishScoped SourceNote{} = SoftScope
 
 -- | Returns whether the tick scoping rule is at least as permissive
@@ -1185,6 +1192,7 @@ tickishPlace n@ProfNote{}
   | otherwise              = PlaceCostCentre
 tickishPlace HpcTick{}     = PlaceRuntime
 tickishPlace Breakpoint{}  = PlaceRuntime
+tickishPlace Tracepoint{}  = PlaceRuntime
 tickishPlace SourceNote{}  = PlaceNonLam
 
 -- | Returns whether one tick "contains" the other one, therefore

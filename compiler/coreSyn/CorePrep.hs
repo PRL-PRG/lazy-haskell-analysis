@@ -639,6 +639,8 @@ cpeRhsE env (Tick tickish expr)
     tickish' | Breakpoint n fvs <- tickish
              -- See also 'substTickish'
              = Breakpoint n (map (getIdFromTrivialExpr . lookupCorePrepEnv env) fvs)
+             | Tracepoint n fvs <- tickish
+             = error "todo: implement core prep for tracepoints"
              | otherwise
              = tickish
 

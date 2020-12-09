@@ -88,6 +88,7 @@ tidyAlt env (con, vs, rhs)
 ------------  Tickish  --------------
 tidyTickish :: TidyEnv -> Tickish Id -> Tickish Id
 tidyTickish env (Breakpoint ix ids) = Breakpoint ix (map (tidyVarOcc env) ids)
+tidyTickish env (Tracepoint ix ids) = error "todo: implement core tidy for tracepoints"
 tidyTickish _   other_tickish       = other_tickish
 
 ------------  Rules  --------------

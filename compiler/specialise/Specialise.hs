@@ -957,6 +957,8 @@ specTickish env (Breakpoint ix ids)
   = Breakpoint ix [ id' | id <- ids, Var id' <- [specVar env id]]
   -- drop vars from the list if they have a non-variable substitution.
   -- should never happen, but it's harmless to drop them anyway.
+specTickish env (Tracepoint ix ids)
+  = Tracepoint ix [ id' | id <- ids, Var id' <- [specVar env id]]
 specTickish _ other_tickish = other_tickish
 
 --------------

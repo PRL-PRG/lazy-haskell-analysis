@@ -292,6 +292,24 @@ static StgWord app_ptrs_itbl[] = {
 HsStablePtr rts_breakpoint_io_action; // points to the IO action which is executed on a breakpoint
                                       // it is set in main/GHC.hs:runStmt
 
+#define shiny_belch(msg) {       \
+    printf("\033[35m--> ");     \
+    msg;                         \
+    printf(" <--\033[0m\n\n");  \
+}
+
+void hook_pap(StgPAP *obj) {
+    shiny_belch(
+        printf("partial application of arity %u", obj->arity);
+    );
+}
+
+void hook_bco(StgBCO *obj) {
+    shiny_belch(
+        printf("BCO application of arity %u", obj->arity);
+    );
+}
+
 Capability *
 interpretBCO (Capability* cap)
 {
@@ -741,6 +759,7 @@ do_apply:
             uint32_t i, arity;
 
             pap = (StgPAP *)obj;
+            hook_pap(pap);
 
             // we only cope with PAPs whose function is a BCO
             if (get_itbl(UNTAG_CLOSURE(pap->fun))->type != BCO) {
@@ -819,6 +838,8 @@ do_apply:
 
         case BCO: {
             uint32_t arity, i;
+
+            hook_bco((StgBCO *)obj);
 
             Sp_addW(1);
             arity = ((StgBCO *)obj)->arity;

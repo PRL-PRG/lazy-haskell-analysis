@@ -291,6 +291,7 @@ exprs_fvs exprs = mapUnionFV expr_fvs exprs
 
 tickish_fvs :: Tickish Id -> FV
 tickish_fvs (Breakpoint _ ids) = FV.mkFVs ids
+tickish_fvs (Tracepoint _ ids) = FV.mkFVs ids
 tickish_fvs _ = emptyFV
 
 {-
@@ -772,6 +773,7 @@ freeVars = go
       where
         expr2 = go expr
         tickishFVs (Breakpoint _ ids) = mkDVarSet ids
+        tickishFVs (Tracepoint _ ids) = mkDVarSet ids
         tickishFVs _                  = emptyDVarSet
 
     go (Type ty)     = (tyCoVarsOfTypeDSet ty, AnnType ty)

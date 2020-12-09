@@ -434,6 +434,7 @@ coreToStgExpr (Tick tick expr)
          ProfNote{}   -> return ()
          SourceNote{} -> return ()
          Breakpoint{} -> panic "coreToStgExpr: breakpoint should not happen"
+         Tracepoint{} -> panic "coreToStgExpr: tracepoint should not happen"
        expr2 <- coreToStgExpr expr
        return (StgTick tick expr2)
 

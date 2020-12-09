@@ -608,6 +608,11 @@ instance Outputable id => Outputable (Tickish id) where
             ppr ix,
             text ">",
             parens (hcat (punctuate comma (map ppr vars)))]
+  ppr (Tracepoint ix vars) =
+      hcat [text "trace<",
+            ppr ix,
+            text ">",
+            parens (hcat (punctuate comma (map ppr vars)))]
   ppr (ProfNote { profNoteCC = cc,
                   profNoteCount = tick,
                   profNoteScope = scope }) =

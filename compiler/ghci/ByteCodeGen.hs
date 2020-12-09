@@ -418,7 +418,9 @@ schemeER_wrk d p rhs
                | otherwise = toRemotePtr nullPtr
         let breakInstr = BRK_FUN (fromIntegral tick_no) (getUnique this_mod) cc
         return $ breakInstr `consOL` code
-   | otherwise = schemeE d 0 p rhs
+  | AnnTick (Tracepoint tick_no fvs) (_annot, newRhs) <- rhs
+  = error "todo: implement bytecode gen for tracepoints (schemeER_wrk)"
+  | otherwise = schemeE d 0 p rhs
 
 getVarOffSets :: DynFlags -> StackDepth -> BCEnv -> [Id] -> [Maybe (Id, Word16)]
 getVarOffSets dflags depth env = map getOffSet
@@ -628,6 +630,8 @@ schemeE d s p exp@(AnnTick (Breakpoint _id _fvs) _rhs)
      exp' = deAnnotate' exp
      fvs  = exprFreeVarsDSet exp'
      ty   = exprType exp'
+
+schemeE d s p exp@(AnnTick (Tracepoint _id _fvs) _rhs) = error "todo: implement tracepoint codegen"
 
 -- ignore other kinds of tick
 schemeE d s p (AnnTick _ (_, rhs)) = schemeE d s p rhs
@@ -1887,6 +1891,7 @@ bcView (AnnCast (_,e) _)             = Just e
 bcView (AnnLam v (_,e)) | isTyVar v  = Just e
 bcView (AnnApp (_,e) (_, AnnType _)) = Just e
 bcView (AnnTick Breakpoint{} _)      = Nothing
+bcView (AnnTick Tracepoint{} _)      = Nothing
 bcView (AnnTick _other_tick (_,e))   = Just e
 bcView _                             = Nothing
 

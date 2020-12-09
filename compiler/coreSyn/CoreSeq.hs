@@ -73,6 +73,7 @@ seqTickish :: Tickish Id -> ()
 seqTickish ProfNote{ profNoteCC = cc } = cc `seq` ()
 seqTickish HpcTick{} = ()
 seqTickish Breakpoint{ breakpointFVs = ids } = seqBndrs ids
+seqTickish Tracepoint{ tracepointFVs = ids } = seqBndrs ids
 seqTickish SourceNote{} = ()
 
 seqBndr :: CoreBndr -> ()

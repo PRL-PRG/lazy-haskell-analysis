@@ -2139,6 +2139,8 @@ eqExpr in_scope e1 e2
 eqTickish :: RnEnv2 -> Tickish Id -> Tickish Id -> Bool
 eqTickish env (Breakpoint lid lids) (Breakpoint rid rids)
       = lid == rid  &&  map (rnOccL env) lids == map (rnOccR env) rids
+eqTickish env (Tracepoint lid lids) (Tracepoint rid rids)
+      = error "todo: implement eq for tracepoints"
 eqTickish _ l r = l == r
 
 -- | Finds differences between core expressions, modulo alpha and

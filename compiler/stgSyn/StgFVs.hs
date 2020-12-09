@@ -9,7 +9,7 @@ import GhcPrelude
 import StgSyn
 import Id
 import VarSet
-import CoreSyn    ( Tickish(Breakpoint) )
+import CoreSyn    ( Tickish(Breakpoint, Tracepoint) )
 import Outputable
 import Util
 
@@ -104,6 +104,7 @@ expr env = go
         (e', fvs) = go e
         fvs' = unionDVarSet (tickish tick) fvs
         tickish (Breakpoint _ ids) = mkDVarSet ids
+        tickish (Tracepoint _ ids) = mkDVarSet ids
         tickish _                  = emptyDVarSet
 
     go_bind dc bind body = (dc bind' body', fvs)

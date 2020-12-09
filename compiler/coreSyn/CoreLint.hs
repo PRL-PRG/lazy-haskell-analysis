@@ -738,6 +738,7 @@ lintCoreExpr (Tick tickish expr)
          Breakpoint _ ids -> forM_ ids $ \id -> do
                                checkDeadIdOcc id
                                lookupIdInScope id
+         Tracepoint _ _ -> error "todo: implement corelint for tracepoints"
          _                -> return ()
        markAllJoinsBadIf block_joins $ lintCoreExpr expr
   where

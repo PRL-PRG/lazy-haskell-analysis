@@ -557,6 +557,7 @@ toIfaceTickish (SourceNote src names)  = Just (IfaceSource src names)
 toIfaceTickish (Breakpoint {})         = Nothing
    -- Ignore breakpoints, since they are relevant only to GHCi, and
    -- should not be serialised (#8333)
+toIfaceTickish (Tracepoint {})         = Nothing
 
 ---------------------
 toIfaceBind :: Bind Id -> IfaceBinding
