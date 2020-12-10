@@ -1,0 +1,34 @@
+
+T14040a.hs:34:8: error:
+    • Cannot apply expression of type ‘Sing wl
+                                       -> (forall y. p _0 'WeirdNil)
+                                       -> (forall z (x :: z) (xs :: WeirdList (WeirdList z)).
+                                           Sing x
+                                           -> Sing xs
+                                           -> p GHC.Types.Any xs
+                                           -> p GHC.Types.Any ('WeirdCons x xs))
+                                       -> p _1 wl’
+      to a visible type argument ‘(WeirdList z)’
+    • In the sixth argument of ‘pWeirdCons’, namely
+        ‘(elimWeirdList @(WeirdList z) @xs @p xs pWeirdNil pWeirdCons)’
+      In the expression:
+        pWeirdCons
+          @z
+          @x
+          @xs
+          x
+          xs
+          (elimWeirdList @(WeirdList z) @xs @p xs pWeirdNil pWeirdCons)
+      In an equation for ‘elimWeirdList’:
+          elimWeirdList
+            (SWeirdCons (x :: Sing (x :: z))
+                        (xs :: Sing (xs :: WeirdList (WeirdList z))))
+            pWeirdNil
+            pWeirdCons
+            = pWeirdCons
+                @z
+                @x
+                @xs
+                x
+                xs
+                (elimWeirdList @(WeirdList z) @xs @p xs pWeirdNil pWeirdCons)
