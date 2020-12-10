@@ -104,7 +104,7 @@ addTicksToBinds hsc_env mod mod_loc exports tyCons binds
                          , ccIndices    = newCostCentreState
                          }
 
-          (binds1,st) = foldr tickPass (binds, initState) passes
+          (binds1,st) = foldr tickPass (binds, initState) (trace ("passes: " ++ show passes) passes)
 
      let tickCount = tickBoxCount st
          entries = reverse $ mixEntries st
@@ -405,6 +405,7 @@ addTickLHsExpr e@(dL->L pos e0) = do
   d <- getDensity
   case d of
     TickForBreakPoints | isGoodBreakExpr e0 -> tick_it
+    TickForTracePoints | isGoodTraceExpr e0 -> tick_it
     TickForCoverage    -> tick_it
     TickCallSites      | isCallSite e0      -> tick_it
     _other             -> dont_tick_it
@@ -421,6 +422,8 @@ addTickLHsExprRHS e@(dL->L pos e0) = do
   d <- getDensity
   case d of
      TickForBreakPoints | HsLet{} <- e0 -> dont_tick_it
+                        | otherwise     -> tick_it
+     TickForTracePoints | HsLet{} <- e0 -> dont_tick_it
                         | otherwise     -> tick_it
      TickForCoverage -> tick_it
      TickCallSites   | isCallSite e0 -> tick_it
@@ -451,6 +454,8 @@ addTickLHsExprLetBody e@(dL->L pos e0) = do
   case d of
      TickForBreakPoints | HsLet{} <- e0 -> dont_tick_it
                         | otherwise     -> tick_it
+     TickForTracePoints | HsLet{} <- e0 -> dont_tick_it
+                        | otherwise     -> tick_it
      _other -> addTickLHsExprEvalInner e
  where
    tick_it      = allocTickBox (ExpBox False) False False pos $ addTickHsExpr e0
@@ -471,6 +476,9 @@ isGoodBreakExpr (HsApp {})     = True
 isGoodBreakExpr (HsAppType {}) = True
 isGoodBreakExpr (OpApp {})     = True
 isGoodBreakExpr _other         = False
+
+isGoodTraceExpr :: HsExpr GhcTc -> Bool
+isGoodTraceExpr = isGoodBreakExpr
 
 isCallSite :: HsExpr GhcTc -> Bool
 isCallSite HsApp{}     = True
@@ -1041,12 +1049,12 @@ data TickTransEnv = TTE { fileName     :: FastString
 --      deriving Show
 
 data TickishType = ProfNotes | HpcTicks | Breakpoints | Tracepoints | SourceNotes
-                 deriving (Eq)
+                 deriving (Eq, Show)
 
 coveragePasses :: DynFlags -> [TickishType]
 coveragePasses dflags =
-    ifa (tracepointsEnabled dflags)          Tracepoints $
     ifa (breakpointsEnabled dflags)          Breakpoints $
+    ifa (tracepointsEnabled dflags)          Tracepoints $
     ifa (gopt Opt_Hpc dflags)                HpcTicks $
     ifa (gopt Opt_SccProfilingOn dflags &&
          profAuto dflags /= NoProfAuto)      ProfNotes $
@@ -1060,7 +1068,7 @@ breakpointsEnabled dflags = hscTarget dflags == HscInterpreted
 
 -- | Should we produce 'Tracepoint' ticks?
 tracepointsEnabled :: DynFlags -> Bool
-tracepointsEnabled dflags = hscTarget dflags == HscInterpreted
+tracepointsEnabled dflags | trace "\n\n>>> checking if tracepoints are enabled <<<\n\n" True = hscTarget dflags == HscInterpreted
 
 -- | Tickishs that only make sense when their source code location
 -- refers to the current file. This might not always be true due to
@@ -1213,7 +1221,7 @@ allocATickBox boxLabel countEntries topOnly  pos fvs =
 
 mkTickish :: BoxLabel -> Bool -> Bool -> SrcSpan -> OccEnv Id -> [String]
           -> TM (Tickish Id)
-mkTickish boxLabel countEntries topOnly pos fvs decl_path = do
+mkTickish boxLabel countEntries topOnly pos fvs decl_path | trace "mkTickish called" True = do
 
   let ids = filter (not . isUnliftedType . idType) $ occEnvElts fvs
           -- unlifted types cause two problems here:
@@ -1229,7 +1237,7 @@ mkTickish boxLabel countEntries topOnly pos fvs decl_path = do
 
   dflags <- getDynFlags
   env <- getEnv
-  case tickishType env of
+  case (trace (show $ tickishType env) $ tickishType env) of
     HpcTicks -> do
       c <- liftM tickBoxCount getState
       setState $ \st -> st { tickBoxCount = c + 1
@@ -1249,7 +1257,11 @@ mkTickish boxLabel countEntries topOnly pos fvs decl_path = do
                            , mixEntries = me:mixEntries st }
       return $ Breakpoint c ids
 
-    Tracepoints -> error "todo: implement coverage logic for tracepoints"
+    Tracepoints -> do
+      c <- liftM tickBoxCount getState
+      setState $ \st -> st { tickBoxCount = c + 1
+                           , mixEntries = me:mixEntries st }
+      return $ Tracepoint c ids
 
     SourceNotes | RealSrcSpan pos' <- pos ->
       return $ SourceNote pos' cc_name

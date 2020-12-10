@@ -711,7 +711,9 @@ substTickish subst (Breakpoint n ids)
  where
     do_one = getIdFromTrivialExpr . lookupIdSubst (text "subst_tickish") subst
 substTickish subst (Tracepoint n ids)
-   = error "todo: implement substitution for tracepoints"
+   = Tracepoint n (map do_one ids)
+ where
+    do_one = getIdFromTrivialExpr . lookupIdSubst (text "subst_tickish") subst
 substTickish _subst other = other
 
 {- Note [Substitute lazily]

@@ -419,7 +419,21 @@ schemeER_wrk d p rhs
         let breakInstr = BRK_FUN (fromIntegral tick_no) (getUnique this_mod) cc
         return $ breakInstr `consOL` code
   | AnnTick (Tracepoint tick_no fvs) (_annot, newRhs) <- rhs
-  = error "todo: implement bytecode gen for tracepoints (schemeER_wrk)"
+  = do  code <- schemeE d 0 p newRhs
+        cc_arr <- getCCArray
+        this_mod <- moduleName <$> getCurrentModule
+        dflags <- getDynFlags
+        let idOffSets = getVarOffSets dflags d p fvs
+        let breakInfo = CgBreakInfo
+                        { cgb_vars = idOffSets
+                        , cgb_resty = exprType (deAnnotate' newRhs)
+                        }
+        newBreakInfo tick_no breakInfo
+        dflags <- getDynFlags
+        let cc | interpreterProfiled dflags = cc_arr ! tick_no
+               | otherwise = toRemotePtr nullPtr
+        let breakInstr = TRC_FUN (fromIntegral tick_no) (getUnique this_mod) cc
+        return $ breakInstr `consOL` code
   | otherwise = schemeE d 0 p rhs
 
 getVarOffSets :: DynFlags -> StackDepth -> BCEnv -> [Id] -> [Maybe (Id, Word16)]
@@ -631,7 +645,26 @@ schemeE d s p exp@(AnnTick (Breakpoint _id _fvs) _rhs)
      fvs  = exprFreeVarsDSet exp'
      ty   = exprType exp'
 
-schemeE d s p exp@(AnnTick (Tracepoint _id _fvs) _rhs) = error "todo: implement tracepoint codegen"
+schemeE d s p exp@(AnnTick (Tracepoint _id _fvs) _rhs)
+   | isLiftedTypeKind (typeKind ty)
+   -- see comments in the Breakpoint branch above, the code is identical
+   = do   id <- newId ty
+          let letExp = AnnLet (AnnNonRec id (fvs, exp)) (emptyDVarSet, AnnVar id)
+          schemeE d s p letExp
+
+   | otherwise
+   = do
+          id <- newId (mkVisFunTy realWorldStatePrimTy ty)
+          st <- newId realWorldStatePrimTy
+          let letExp = AnnLet (AnnNonRec id (fvs, AnnLam st (emptyDVarSet, exp)))
+                              (emptyDVarSet, (AnnApp (emptyDVarSet, AnnVar id)
+                                                    (emptyDVarSet, AnnVar realWorldPrimId)))
+          schemeE d s p letExp
+
+   where
+     exp' = deAnnotate' exp
+     fvs  = exprFreeVarsDSet exp'
+     ty   = exprType exp'
 
 -- ignore other kinds of tick
 schemeE d s p (AnnTick _ (_, rhs)) = schemeE d s p rhs

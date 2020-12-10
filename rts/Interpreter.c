@@ -1165,6 +1165,25 @@ run_BCO:
             goto nextInsn;
         }
 
+        case bci_TRC_FUN: {
+            int arg1_brk_array, arg2_array_index, arg3_module_uniq;
+#if defined(PROFILING)
+            int arg4_cc;
+#endif
+            arg1_brk_array = BCO_GET_LARGE_ARG;
+            arg2_array_index = BCO_NEXT;
+            arg3_module_uniq = BCO_GET_LARGE_ARG;
+#if defined(PROFILING)
+            arg4_cc = BCO_GET_LARGE_ARG;
+#else
+            BCO_GET_LARGE_ARG;
+#endif
+
+            shiny_belch(printf("hit tracepoint #%d", arg2_array_index));
+
+            goto nextInsn;
+        }
+
         case bci_STKCHECK: {
             // Explicit stack check at the beginning of a function
             // *only* (stack checks in case alternatives are

@@ -1157,8 +1157,8 @@ simplTick env tickish expr cont
   simplTickish env tickish
     | Breakpoint n ids <- tickish
           = Breakpoint n (map (getDoneId . substId env) ids)
-    | Tracepoint _ _ <- tickish
-          = error "it's probably unnecessary to implement tracepoints in dead GHC code"
+    | Tracepoint n ids <- tickish
+          = Tracepoint n (map (getDoneId . substId env) ids)
     | otherwise = tickish
 
   -- Push type application and coercion inside a tick

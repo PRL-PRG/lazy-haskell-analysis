@@ -441,6 +441,11 @@ assembleI dflags i = case i of
                                  np <- addr cc
                                  emit bci_BRK_FUN [Op p1, SmallOp index,
                                                    Op q, Op np]
+  TRC_FUN index uniq cc    -> do p1 <- ptr BCOPtrBreakArray
+                                 q <- int (getKey uniq)
+                                 np <- addr cc
+                                 emit bci_TRC_FUN [Op p1, SmallOp index,
+                                                   Op q, Op np]
 
   where
     literal (LitLabel fs (Just sz) _)

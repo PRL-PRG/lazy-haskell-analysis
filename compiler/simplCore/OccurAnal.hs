@@ -1712,8 +1712,8 @@ occAnal env (Tick tickish body)
   = (usage_lam `andUDs` foldr addManyOccs emptyDetails ids, Tick tickish body')
     -- never substitute for any of the Ids in a Breakpoint
 
-  | Tracepoint _ _ <- tickish
-  = error "todo: implement occurrence analysis for tracepoints"
+  | Tracepoint _ ids <- tickish
+  = (usage_lam `andUDs` foldr addManyOccs emptyDetails ids, Tick tickish body')
   | otherwise
   = (usage_lam, Tick tickish body')
   where

@@ -173,6 +173,10 @@ data BCInstr
 
    -- Breakpoints
    | BRK_FUN          Word16 Unique (RemotePtr CostCentre)
+   -- Tracepoints
+   | TRC_FUN          Word16 -- the index of this tracepoint
+                      Unique -- a reference to the surrounding module
+                      (RemotePtr CostCentre) -- a nullable pointer to a cost centre
 
 -- -----------------------------------------------------------------------------
 -- Printing bytecode instructions
@@ -293,6 +297,7 @@ instance Outputable BCInstr where
    ppr RETURN                = text "RETURN"
    ppr (RETURN_UBX pk)       = text "RETURN_UBX  " <+> ppr pk
    ppr (BRK_FUN index uniq _cc) = text "BRK_FUN" <+> ppr index <+> ppr uniq <+> text "<cc>"
+   ppr (TRC_FUN index uniq _cc) = text "TRC_FUN" <+> ppr index <+> ppr uniq <+> text "<cc>"
 
 -- -----------------------------------------------------------------------------
 -- The stack use, in words, of each bytecode insn.  These _must_ be
@@ -364,6 +369,7 @@ bciStackUse RETURN_UBX{}          = 1
 bciStackUse CCALL{}               = 0
 bciStackUse SWIZZLE{}             = 0
 bciStackUse BRK_FUN{}             = 0
+bciStackUse TRC_FUN{}             = 0
 
 -- These insns actually reduce stack use, but we need the high-tide level,
 -- so can't use this info.  Not that it matters much.
