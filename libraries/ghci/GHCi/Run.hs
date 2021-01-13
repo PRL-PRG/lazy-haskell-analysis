@@ -40,6 +40,7 @@ import GHC.Conc.Sync
 import GHC.IO hiding ( bracket )
 import System.Mem.Weak  ( deRefWeak )
 import Unsafe.Coerce
+import Debug.Trace (trace)
 
 -- -----------------------------------------------------------------------------
 -- Implement messages
@@ -149,9 +150,9 @@ sandboxIO opts io = do
     let runIt = measureAlloc $ tryEval $ rethrow opts $ clearCCS io
     if useSandboxThread opts
        then do
-         tid <- forkIO $ do unsafeUnmask runIt >>= putMVar statusMVar
+         tid <- forkIO $ do unsafeUnmask runIt >>= putMVar (trace "><> sandboxIO put -> status" statusMVar)
                                 -- empty: can't block
-         redirectInterrupts tid $ unsafeUnmask $ takeMVar statusMVar
+         redirectInterrupts tid $ unsafeUnmask $ takeMVar (trace "><> sandboxIO take <- status" statusMVar)
        else
           -- GLUT on OS X needs to run on the main thread. If you
           -- try to use it from another thread then you just get a
@@ -243,10 +244,12 @@ withBreakAction opts breakMVar statusMVar act
  where
    setBreakAction = do
      stablePtr <- newStablePtr onBreak
+     traceStablePtr <- newStablePtr onTrace
      poke breakPointIOAction stablePtr
+     poke tracePointIOAction traceStablePtr
      when (breakOnException opts) $ poke exceptionFlag 1
-     when (singleStep opts) $ setStepFlag
-     return stablePtr
+     when (singleStep opts) $ setStepFlag >> setTraceFlag
+     return (stablePtr, traceStablePtr)
         -- Breaking on exceptions is not enabled by default, since it
         -- might be a bit surprising.  The exception flag is turned off
         -- as soon as it is hit, or in resetBreakAction below.
@@ -261,14 +264,29 @@ withBreakAction opts breakMVar statusMVar act
      resume_r <- mkRemoteRef resume
      apStack_r <- mkRemoteRef apStack
      ccs <- toRemotePtr <$> getCCSOf apStack
-     putMVar statusMVar $ EvalBreak is_exception apStack_r (I# ix#) (I# uniq#) resume_r ccs
-     takeMVar breakMVar
+     putMVar ({-trace "><> onBreak put -> status"-} statusMVar) $ EvalBreak is_exception apStack_r (I# ix#) (I# uniq#) resume_r ccs
+     takeMVar ({-trace "><> onBreak take <- break"-} breakMVar)
 
-   resetBreakAction stablePtr = do
+   onTrace :: TracepointCallback
+   onTrace ix# uniq# _ apStack = do
+     tid <- myThreadId
+     let resume = ResumeContext
+           { resumeBreakMVar = breakMVar
+           , resumeStatusMVar = statusMVar
+           , resumeThreadId = tid }
+     resume_r <- mkRemoteRef resume
+     apStack_r <- mkRemoteRef apStack
+     ccs <- toRemotePtr <$> getCCSOf apStack
+     putMVar ({-trace "><> onTrace put -> status"-} statusMVar) $ EvalTrace apStack_r (I# ix#) (I# uniq#) resume_r ccs
+     takeMVar ({-trace "><> onTrace take <- break"-} breakMVar)
+
+   resetBreakAction (stablePtr, traceStablePtr) = do
      poke breakPointIOAction noBreakStablePtr
      poke exceptionFlag 0
      resetStepFlag
+     setTraceFlag
      freeStablePtr stablePtr
+     freeStablePtr traceStablePtr
 
 resumeStmt
   :: EvalOpts -> RemoteRef (ResumeContext [HValueRef])
@@ -277,8 +295,8 @@ resumeStmt opts hvref = do
   ResumeContext{..} <- localRef hvref
   withBreakAction opts resumeBreakMVar resumeStatusMVar $
     mask_ $ do
-      putMVar resumeBreakMVar () -- this awakens the stopped thread...
-      redirectInterrupts resumeThreadId $ takeMVar resumeStatusMVar
+      putMVar ({-trace "><> resume put -> break"-} resumeBreakMVar) () -- this awakens the stopped thread...
+      redirectInterrupts resumeThreadId $ takeMVar ({-trace "><> resume take <- status"-} resumeStatusMVar)
 
 -- when abandoning a computation we have to
 --      (a) kill the thread with an async exception, so that the
@@ -296,17 +314,23 @@ abandonStmt :: RemoteRef (ResumeContext [HValueRef]) -> IO ()
 abandonStmt hvref = do
   ResumeContext{..} <- localRef hvref
   killThread resumeThreadId
-  putMVar resumeBreakMVar ()
-  _ <- takeMVar resumeStatusMVar
+  putMVar ({-trace "><> abandon put -> break"-} resumeBreakMVar) ()
+  _ <- takeMVar ({-trace "><> abandon take <- status"-} resumeStatusMVar)
   return ()
 
 foreign import ccall "&rts_stop_next_breakpoint" stepFlag      :: Ptr CInt
+foreign import ccall "&rts_stop_next_tracepoint" traceFlag     :: Ptr CInt
 foreign import ccall "&rts_stop_on_exception"    exceptionFlag :: Ptr CInt
 
 setStepFlag :: IO ()
 setStepFlag = poke stepFlag 1
 resetStepFlag :: IO ()
 resetStepFlag = poke stepFlag 0
+
+setTraceFlag :: IO ()
+setTraceFlag = poke traceFlag 1
+resetTraceFlag :: IO ()
+resetTraceFlag = poke stepFlag 0
 
 type BreakpointCallback
      = Int#    -- the breakpoint index
@@ -315,8 +339,18 @@ type BreakpointCallback
     -> HValue  -- the AP_STACK, or exception
     -> IO ()
 
+type TracepointCallback
+     = Int#    -- the tracepoint index
+    -> Int#    -- the module uniq
+    -> Bool    -- unused
+    -> HValue  -- the AP_STACK
+    -> IO ()
+
 foreign import ccall "&rts_breakpoint_io_action"
    breakPointIOAction :: Ptr (StablePtr BreakpointCallback)
+
+foreign import ccall "&rts_tracepoint_io_action"
+  tracePointIOAction :: Ptr (StablePtr TracepointCallback)
 
 noBreakStablePtr :: StablePtr BreakpointCallback
 noBreakStablePtr = unsafePerformIO $ newStablePtr noBreakAction
@@ -324,6 +358,9 @@ noBreakStablePtr = unsafePerformIO $ newStablePtr noBreakAction
 noBreakAction :: BreakpointCallback
 noBreakAction _ _ False _ = putStrLn "*** Ignoring breakpoint"
 noBreakAction _ _ True  _ = return () -- exception: just continue
+
+noTraceAction :: TracepointCallback
+noTraceAction _ _ _ _ = putStrLn "*** Ignoring tracepoint"
 
 -- Malloc and copy the bytes.  We don't have any way to monitor the
 -- lifetime of this memory, so it just leaks.

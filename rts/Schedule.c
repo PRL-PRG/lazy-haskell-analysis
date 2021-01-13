@@ -464,7 +464,11 @@ run_thread:
     case ThreadRunGHC:
     {
         StgRegTable *r;
-        r = StgRun((StgFunPtr) stg_returnToStackTop, &cap->r);
+        StgFunPtr a = (StgFunPtr) stg_returnToStackTop;
+        StgRegTable *b = &cap->r;
+        // debugBelch("args?¿?\n");
+        r = StgRun(a, b);
+        // debugBelch("yayy\n");
         cap = regTableToCapability(r);
         ret = r->rRet;
         break;
@@ -480,6 +484,7 @@ run_thread:
     }
 
     cap->in_haskell = false;
+    // debugBelch("returned to scheduler\n");
 
     // The TSO might have moved, eg. if it re-entered the RTS and a GC
     // happened.  So find the new location:

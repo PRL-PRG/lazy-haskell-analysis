@@ -365,6 +365,11 @@ data EvalStatus_ a b
        Int {- uniq of ModuleName -}
        (RemoteRef (ResumeContext b))
        (RemotePtr CostCentreStack) -- Cost centre stack
+  | EvalTrace HValueRef{- AP_STACK -}
+       Int {- trace index -}
+       Int {- uniq of ModuleName -}
+       (RemoteRef (ResumeContext b))
+       (RemotePtr CostCentreStack) -- Cost centre stack
   deriving (Generic, Show)
 
 instance Binary a => Binary (EvalStatus_ a b)

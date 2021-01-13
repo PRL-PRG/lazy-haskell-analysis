@@ -9,7 +9,7 @@
 module InteractiveEvalTypes (
         Resume(..), History(..), ExecResult(..),
         SingleStep(..), isStep, ExecOptions(..),
-        BreakInfo(..)
+        BreakInfo(..), TraceInfo(..)
         ) where
 
 import GhcPrelude
@@ -53,10 +53,18 @@ data ExecResult
        { breakNames :: [Name]
        , breakInfo :: Maybe BreakInfo
        }
+  | ExecTrace
+       { traceInfo :: TraceInfo
+       }
 
 data BreakInfo = BreakInfo
   { breakInfo_module :: Module
   , breakInfo_number :: Int
+  }
+
+data TraceInfo = TraceInfo
+  { traceInfo_module :: Module
+  , traceInfo_number :: Int
   }
 
 data Resume = Resume

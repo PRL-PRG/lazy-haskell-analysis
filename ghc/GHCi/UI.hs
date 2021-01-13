@@ -1266,6 +1266,10 @@ afterRunStmt step_here run_result = do
           Right names -> do
             show_types <- isOptionSet ShowType
             when show_types $ printTypeOfNames names
+     GHC.ExecTrace tp_info -> do
+       -- FIXME: what an ugly hack!
+       enqueueCommands [":continue"]
+       return ()
      GHC.ExecBreak names mb_info
          | isNothing  mb_info ||
            step_here (GHC.resumeSpan $ head resumes) -> do

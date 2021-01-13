@@ -255,6 +255,7 @@ handleEvalStatus
 handleEvalStatus hsc_env status =
   case status of
     EvalBreak a b c d e f -> return (EvalBreak a b c d e f)
+    EvalTrace stack id uniq ctxt ccs -> return (EvalTrace stack id uniq ctxt ccs)
     EvalComplete alloc res ->
       EvalComplete alloc <$> addFinalizer res
  where

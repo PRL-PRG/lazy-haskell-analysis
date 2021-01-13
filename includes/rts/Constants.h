@@ -289,6 +289,7 @@
 #define TSO_BLOCKEX       4
 #define TSO_INTERRUPTIBLE 8
 #define TSO_STOPPED_ON_BREAKPOINT 16
+#define TSO_STOPPED_ON_TRACEPOINT 32
 
 /*
  * Used by the sanity checker to check whether TSOs are on the correct

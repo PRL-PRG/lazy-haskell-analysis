@@ -496,6 +496,7 @@ RTS_FUN_DECL(stg_setThreadAllocationCounterzh);
 extern StgWord rts_stop_next_breakpoint[];
 extern StgWord rts_stop_on_exception[];
 extern StgWord rts_breakpoint_io_action[];
+// extern StgWord rts_tracepoint_io_action[]; // TODO: is this necessary?
 
 // Schedule.c
 extern StgWord RTS_VAR(blocked_queue_hd), RTS_VAR(blocked_queue_tl);

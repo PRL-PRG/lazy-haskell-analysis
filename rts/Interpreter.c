@@ -152,6 +152,7 @@ allocate_NONUPD (Capability *cap, int n_words)
 }
 
 int rts_stop_next_breakpoint = 0;
+int rts_stop_next_tracepoint = 1;
 int rts_stop_on_exception = 0;
 
 #if defined(INTERP_STATS)
@@ -292,22 +293,13 @@ static StgWord app_ptrs_itbl[] = {
 HsStablePtr rts_breakpoint_io_action; // points to the IO action which is executed on a breakpoint
                                       // it is set in main/GHC.hs:runStmt
 
+HsStablePtr rts_tracepoint_io_action; // points to the IO action which is executed on a tracepoint
+                                      // it is set in libraries/ghci/GHCi/Run.hs:withBreakAction
+
 #define shiny_belch(msg) {       \
     printf("\033[35m--> ");     \
     msg;                         \
     printf(" <--\033[0m\n\n");  \
-}
-
-void hook_pap(StgPAP *obj) {
-    shiny_belch(
-        printf("partial application of arity %u", obj->arity);
-    );
-}
-
-void hook_bco(StgBCO *obj) {
-    shiny_belch(
-        printf("BCO application of arity %u", obj->arity);
-    );
 }
 
 Capability *
@@ -759,7 +751,6 @@ do_apply:
             uint32_t i, arity;
 
             pap = (StgPAP *)obj;
-            hook_pap(pap);
 
             // we only cope with PAPs whose function is a BCO
             if (get_itbl(UNTAG_CLOSURE(pap->fun))->type != BCO) {
@@ -838,8 +829,6 @@ do_apply:
 
         case BCO: {
             uint32_t arity, i;
-
-            hook_bco((StgBCO *)obj);
 
             Sp_addW(1);
             arity = ((StgBCO *)obj)->arity;
@@ -1165,7 +1154,16 @@ run_BCO:
             goto nextInsn;
         }
 
-        case bci_TRC_FUN: {
+        case bci_TRC_FUN:
+        {
+            // a closure to save the top stack frame on the heap
+            StgAP_STACK *new_aps;
+
+            int i;
+            int size_words;
+            // the io action to run at a tracepoint
+            StgClosure *ioAction;
+
             int arg1_brk_array, arg2_array_index, arg3_module_uniq;
 #if defined(PROFILING)
             int arg4_cc;
@@ -1179,8 +1177,73 @@ run_BCO:
             BCO_GET_LARGE_ARG;
 #endif
 
-            shiny_belch(printf("hit tracepoint #%d", arg2_array_index));
+            // shiny_belch(printf("hit tracepoint #%d", arg2_array_index));
+            if (!(cap->r.rCurrentTSO->flags & TSO_STOPPED_ON_TRACEPOINT)) {
+                // allocate memory for a new AP_STACK, enough to
+                // store the top stack frame plus an
+                // stg_apply_interp_info pointer and a pointer to
+                // the BCO
+                size_words = BCO_BITMAP_SIZE(obj) + 2;
+                new_aps = (StgAP_STACK *)allocate(cap, AP_STACK_sizeW(size_words));
+                new_aps->size = size_words;
+                new_aps->fun = &stg_dummy_ret_closure;
 
+                // fill in the payload of the AP_STACK
+                new_aps->payload[0] = (StgClosure *)&stg_apply_interp_info;
+                new_aps->payload[1] = (StgClosure *)obj;
+
+                // copy the contents of the top stack frame into the AP_STACK
+                for (i = 2; i < size_words; i++)
+                {
+                    new_aps->payload[i] = (StgClosure *)SpW(i - 2);
+                }
+
+                // No write barrier is needed here as this is a new allocation
+                SET_HDR(new_aps, &stg_AP_STACK_info, cap->r.rCCCS);
+
+                // Arrange the stack to call the tracepoint IO action, and
+                // continue execution of this BCO when the IO action returns.
+                //
+                // ioAction :: Int#        -- the tracepoint index
+                //          -> Int#        -- the module uniq
+                //          -> Bool        -- exception?
+                //          -> HValue      -- the AP_STACK, or exception
+                //          -> IO ()
+                //
+                ioAction = (StgClosure *)deRefStablePtr(
+                    rts_tracepoint_io_action);
+
+                Sp_subW(11);
+                SpW(10) = (W_)obj;
+                SpW(9) = (W_)&stg_apply_interp_info;
+                SpW(8) = (W_)new_aps;
+                SpW(7) = (W_)False_closure;
+                SpW(6) = (W_)&stg_ap_ppv_info;
+                SpW(5) = (W_)BCO_LIT(arg3_module_uniq);
+                SpW(4) = (W_)&stg_ap_n_info;
+                SpW(3) = (W_)arg2_array_index;
+                SpW(2) = (W_)&stg_ap_n_info;
+                SpW(1) = (W_)ioAction;
+                SpW(0) = (W_)&stg_enter_info;
+
+                // set the flag in the TSO to say that we are now
+                // stopping at a tracepoint so that when we resume
+                // we don't stop on the same tracepoint that we
+                // already stopped at just now
+                cap->r.rCurrentTSO->flags |= TSO_STOPPED_ON_TRACEPOINT;
+
+                // stop this thread and return to the scheduler -
+                // eventually we will come back and the IO action on
+                // the top of the stack will be executed
+                // RETURN_TO_SCHEDULER_NO_PAUSE(ThreadRunGHC, ThreadYielding);
+                {
+                    SAVE_THREAD_STATE();
+                    cap->r.rCurrentTSO->what_next = (ThreadRunGHC);
+                    cap->r.rRet = (ThreadYielding);
+                    return cap;
+                }
+            }
+            cap->r.rCurrentTSO->flags &= ~TSO_STOPPED_ON_TRACEPOINT;
             goto nextInsn;
         }
 

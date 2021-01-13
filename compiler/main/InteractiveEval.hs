@@ -370,6 +370,35 @@ handleRunStatus step expr bindings final_ids status history
          setSession hsc_env2
          return (ExecBreak names bp)
 
+    -- Hit a tracepoint
+    | EvalTrace apStack_ref ix mod_uniq resume_ctxt ccs <- status
+    = do
+         hsc_env <- getSession
+         resume_ctxt_fhv <- liftIO $ mkFinalizedHValue hsc_env resume_ctxt
+         apStack_fhv <- liftIO $ mkFinalizedHValue hsc_env apStack_ref
+         let hmi = expectJust "handleRunStatus" $
+                     lookupHptDirectly (hsc_HPT hsc_env)
+                                       (mkUniqueGrimily mod_uniq)
+             modl = mi_module (hm_iface hmi)
+             tp = TraceInfo modl ix
+         (hsc_env1, names, span, decl) <- liftIO $
+           bindLocalsAtBreakpoint hsc_env apStack_fhv $ Just $ BreakInfo (traceInfo_module tp) (traceInfo_number tp)
+         let
+           resume = Resume
+             { resumeStmt = expr, resumeContext = resume_ctxt_fhv
+             , resumeBindings = bindings, resumeFinalIds = final_ids
+             , resumeApStack = apStack_fhv
+             , resumeBreakInfo = Nothing
+             , resumeSpan = span, resumeHistory = toListBL history
+             , resumeDecl = decl
+             , resumeCCS = ccs
+             , resumeHistoryIx = 0 }
+           hsc_env2 = pushResume hsc_env1 resume
+
+         setSession hsc_env2
+         {-trace ("hello world from a Haskell tracepoint callback! " ++ expr) $-}
+         return $ ExecTrace tp
+
     -- Completed successfully
     | EvalComplete allocs (EvalSuccess hvals) <- status
     = do hsc_env <- getSession
