@@ -99,9 +99,11 @@ addTicksToBinds hsc_env mod mod_loc exports tyCons binds
                 (binds',_,st') = unTM (addTickLHsBinds binds) env st
             in (binds', st')
 
-          initState = TT { tickBoxCount = 0
-                         , mixEntries   = []
-                         , ccIndices    = newCostCentreState
+          initState = TT { tickBoxCount    = 0
+                         , breakpointCount = 0
+                         , tracepointCount = 0
+                         , mixEntries      = []
+                         , ccIndices       = newCostCentreState
                          }
 
           (binds1,st) = foldr tickPass (binds, initState) (trace ("passes: " ++ show passes) passes)
@@ -1030,6 +1032,8 @@ addTickArithSeqInfo (FromThenTo e1 e2 e3) =
                 (addTickLHsExpr e3)
 
 data TickTransState = TT { tickBoxCount:: Int
+                         , breakpointCount :: Int
+                         , tracepointCount :: Int
                          , mixEntries  :: [MixEntry_]
                          , ccIndices   :: CostCentreState
                          }
@@ -1253,15 +1257,19 @@ mkTickish boxLabel countEntries topOnly pos fvs decl_path | trace "mkTickish cal
 
     Breakpoints -> do
       c <- liftM tickBoxCount getState
+      bpc <- liftM breakpointCount getState
       setState $ \st -> st { tickBoxCount = c + 1
+                           , breakpointCount = bpc + 1
                            , mixEntries = me:mixEntries st }
-      return $ Breakpoint c ids
+      return $ Breakpoint bpc ids
 
     Tracepoints -> do
       c <- liftM tickBoxCount getState
+      tpc <- liftM tracepointCount getState
       setState $ \st -> st { tickBoxCount = c + 1
+                           , tracepointCount = tpc + 1
                            , mixEntries = me:mixEntries st }
-      return $ Tracepoint c ids
+      return $ Tracepoint tpc ids
 
     SourceNotes | RealSrcSpan pos' <- pos ->
       return $ SourceNote pos' cc_name
