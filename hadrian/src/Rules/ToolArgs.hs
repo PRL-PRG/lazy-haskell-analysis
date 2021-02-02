@@ -69,10 +69,10 @@ allDeps = do
     root <- buildRoot
     let dir = buildDir (vanillaContext Stage0 compiler)
     need [ root -/- dir -/- "Config.hs" ]
-    need [ root -/- dir -/- "GHC" -/- "Parser.hs" ]
-    need [ root -/- dir -/- "GHC" -/- "Parser" -/- "Lexer.hs" ]
-    need [ root -/- dir -/- "GHC" -/- "Cmm" -/- "Parser.hs" ]
-    need [ root -/- dir -/- "GHC" -/- "Cmm" -/- "Lexer.hs"  ]
+    need [ root -/- dir -/- "Parser.hs" ]
+    need [ root -/- dir -/- "Lexer.hs" ]
+    need [ root -/- dir -/- "CmmParse.hs" ]
+    need [ root -/- dir -/- "CmmLex.hs" ]
 
 -- This list is quite a lot like stage0packages but doesn't include
 -- critically the `exe:ghc` component as that depends on the GHC library
