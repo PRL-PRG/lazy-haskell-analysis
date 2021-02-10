@@ -183,7 +183,7 @@ execStmt
   => String             -- ^ a statement (bind or expression)
   -> ExecOptions
   -> m ExecResult
-execStmt input exec_opts@ExecOptions{..} | trace "execStmt called!" otherwise = do
+execStmt input exec_opts@ExecOptions{..} = do
     hsc_env <- getSession
 
     mb_stmt <-
@@ -200,7 +200,7 @@ execStmt input exec_opts@ExecOptions{..} | trace "execStmt called!" otherwise = 
 -- doing preprocessing on the AST before execution, e.g. in GHCi (see
 -- GHCi.UI.runStmt).
 execStmt' :: GhcMonad m => GhciLStmt GhcPs -> String -> ExecOptions -> m ExecResult
-execStmt' stmt stmt_text ExecOptions{..} | trace "execStmt' called!" otherwise = do
+execStmt' stmt stmt_text ExecOptions{..} = do
     hsc_env <- getSession
 
     -- Turn off -fwarn-unused-local-binds when running a statement, to hide
@@ -397,7 +397,7 @@ handleRunStatus step expr bindings final_ids status history
 
          setSession hsc_env2
          {-trace ("hello world from a Haskell tracepoint callback! " ++ expr) $-}
-         return $ ExecTrace tp
+         return $ ExecTrace names tp
 
     -- Completed successfully
     | EvalComplete allocs (EvalSuccess hvals) <- status

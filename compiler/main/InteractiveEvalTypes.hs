@@ -54,7 +54,8 @@ data ExecResult
        , breakInfo :: Maybe BreakInfo
        }
   | ExecTrace
-       { traceInfo :: TraceInfo
+       { traceNames :: [Name]
+       , traceInfo :: TraceInfo
        }
 
 data BreakInfo = BreakInfo

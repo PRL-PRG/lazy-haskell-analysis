@@ -1,3 +1,5 @@
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE MagicHash #-}
 
 -----------------------------------------------------------------------------
@@ -12,7 +14,7 @@
 --
 -----------------------------------------------------------------------------
 
-module Debugger (pprintClosureCommand, showTerm, pprTypeAndContents) where
+module Debugger (pprintClosureCommand, showTerm, printBindings, pprTypeAndContents) where
 
 import GhcPrelude
 
@@ -28,6 +30,7 @@ import IfaceSyn ( showToHeader )
 import IfaceEnv( newInteractiveBinder )
 import Name
 import Var hiding ( varName )
+import qualified Var ( varName )
 import VarSet
 import UniqSet
 import Type
@@ -40,9 +43,87 @@ import DynFlags
 import Exception
 
 import Control.Monad
-import Data.List ( (\\) )
+import Data.List ( (\\), intercalate )
 import Data.Maybe
 import Data.IORef
+import GHC.Clock (getMonotonicTimeNSec)
+
+
+-- let ic = hsc_IC hsc_env
+
+{-
+  let foo = show $ map (\case
+                            (_, AnId _) -> "id"
+                            (_, AConLike _) -> "conlike"
+                            (_, ATyCon _) -> "tycon"
+                            (_, ACoAxiom _) -> "coaxiom"
+                         ) names_tts
+
+-}
+
+printBindings :: GhcMonad m => [Name] -> m ()
+printBindings names = do
+  mtts <- mapM GHC.lookupName names
+  let names_tts = [(x, y) | (x, Just y) <- zip names mtts]
+  let ids = [id | (_, AnId id) <- names_tts]
+  (subst, terms) <- mapAccumLM go emptyTCvSubst ids
+
+  -- Apply the substitutions obtained after recovering the types
+  modifySession $ \hsc_env ->
+    hsc_env{hsc_IC = substInteractiveContext (hsc_IC hsc_env) subst}
+
+  -- get the current srcspan
+  rs <- GHC.getResumeContext
+  let res = head rs
+  let srcSpan = GHC.resumeSpan res
+
+  -- Finally, print the Terms
+  docterms <- mapM showTerm terms
+  dflags <- getDynFlags
+  time <- liftIO getMonotonicTimeNSec
+  let showSDoc = showSDocOneLine dflags
+  let strs = map showSDoc docterms
+  let msg = unlines $ zipWith (\id str ->
+              intercalate "\t" [show time, show srcSpan, GHC.resumeStmt res, showSDoc (ppr id), str]
+              ) ids strs
+  trace msg $ return ()
+
+  where
+    go :: GhcMonad m => TCvSubst -> Id -> m (TCvSubst, Term)
+    go subst id = do
+        let id_ty' = substTy subst (idType id)
+            id'    = id `setIdType` id_ty'
+        term_    <- GHC.obtainTermFromId maxBound False id'
+        term     <- tidyTermTyVars term_
+        term     <- bindSuspensions term
+      -- Before leaving, we compare the type obtained to see if it's more specific
+      --  Then, we extract a substitution,
+      --  mapping the old tyvars to the reconstructed types.
+        let reconstructed_type = termType term
+        hsc_env <- getSession
+        case improveRTTIType hsc_env id_ty' reconstructed_type of
+          Nothing     -> return (subst, term)
+          Just subst' -> do { dflags <- GHC.getSessionDynFlags
+                            ; liftIO $
+                                dumpIfSet_dyn dflags Opt_D_dump_rtti "RTTI"
+                                  (fsep $ [text "RTTI Improvement for", ppr id,
+                                   text "old substitution:" , ppr subst,
+                                   text "new substitution:" , ppr subst'])
+                            ; return (subst `unionTCvSubst` subst', term)}
+    tidyTermTyVars :: GhcMonad m => Term -> m Term
+    tidyTermTyVars t =
+      withSession $ \hsc_env -> do
+      let env_tvs      = tyThingsTyCoVars $ ic_tythings $ hsc_IC hsc_env
+          my_tvs       = termTyCoVars t
+          tvs          = env_tvs `minusVarSet` my_tvs
+          tyvarOccName = nameOccName . tyVarName
+          tidyEnv      = (initTidyOccEnv (map tyvarOccName (nonDetEltsUniqSet tvs))
+            -- It's OK to use nonDetEltsUniqSet here because initTidyOccEnv
+            -- forgets the ordering immediately by creating an env
+                         , getUniqSet $ env_tvs `intersectVarSet` my_tvs)
+      return $ mapTermType (snd . tidyOpenType tidyEnv) t
+
+-- TODO: get [Term], use RttClosureInspect to identify thunks
 
 -------------------------------------
 -- | The :print & friends commands

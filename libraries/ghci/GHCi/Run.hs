@@ -150,9 +150,9 @@ sandboxIO opts io = do
     let runIt = measureAlloc $ tryEval $ rethrow opts $ clearCCS io
     if useSandboxThread opts
        then do
-         tid <- forkIO $ do unsafeUnmask runIt >>= putMVar (trace "><> sandboxIO put -> status" statusMVar)
+         tid <- forkIO $ do unsafeUnmask runIt >>= putMVar statusMVar
                                 -- empty: can't block
-         redirectInterrupts tid $ unsafeUnmask $ takeMVar (trace "><> sandboxIO take <- status" statusMVar)
+         redirectInterrupts tid $ unsafeUnmask $ takeMVar statusMVar
        else
           -- GLUT on OS X needs to run on the main thread. If you
           -- try to use it from another thread then you just get a

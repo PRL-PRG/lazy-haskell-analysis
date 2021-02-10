@@ -106,7 +106,7 @@ addTicksToBinds hsc_env mod mod_loc exports tyCons binds
                          , ccIndices       = newCostCentreState
                          }
 
-          (binds1,st) = foldr tickPass (binds, initState) (trace ("passes: " ++ show passes) passes)
+          (binds1,st) = foldr tickPass (binds, initState) passes
 
      let tickCount = tickBoxCount st
          entries = reverse $ mixEntries st
@@ -1072,7 +1072,7 @@ breakpointsEnabled dflags = hscTarget dflags == HscInterpreted
 
 -- | Should we produce 'Tracepoint' ticks?
 tracepointsEnabled :: DynFlags -> Bool
-tracepointsEnabled dflags | trace "\n\n>>> checking if tracepoints are enabled <<<\n\n" True = hscTarget dflags == HscInterpreted
+tracepointsEnabled dflags = hscTarget dflags == HscInterpreted
 
 -- | Tickishs that only make sense when their source code location
 -- refers to the current file. This might not always be true due to
@@ -1225,7 +1225,7 @@ allocATickBox boxLabel countEntries topOnly  pos fvs =
 
 mkTickish :: BoxLabel -> Bool -> Bool -> SrcSpan -> OccEnv Id -> [String]
           -> TM (Tickish Id)
-mkTickish boxLabel countEntries topOnly pos fvs decl_path | trace "mkTickish called" True = do
+mkTickish boxLabel countEntries topOnly pos fvs decl_path = do
 
   let ids = filter (not . isUnliftedType . idType) $ occEnvElts fvs
           -- unlifted types cause two problems here:
@@ -1241,7 +1241,7 @@ mkTickish boxLabel countEntries topOnly pos fvs decl_path | trace "mkTickish cal
 
   dflags <- getDynFlags
   env <- getEnv
-  case (trace (show $ tickishType env) $ tickishType env) of
+  case tickishType env of
     HpcTicks -> do
       c <- liftM tickBoxCount getState
       setState $ \st -> st { tickBoxCount = c + 1

@@ -1679,7 +1679,7 @@ hscDeclsWithLocation hsc_env str source linenumber = do
     hscParsedDecls hsc_env decls
 
 hscParsedDecls :: HscEnv -> [LHsDecl GhcPs] -> IO ([TyThing], InteractiveContext)
-hscParsedDecls hsc_env decls = runInteractiveHsc hsc_env $ do
+hscParsedDecls hsc_env decls = runInteractiveHsc (trace "hscParsedDecls" hsc_env) $ do
     {- Rename and typecheck it -}
     hsc_env <- getHscEnv
     tc_gblenv <- ioMsgMaybe $ tcRnDeclsi hsc_env decls

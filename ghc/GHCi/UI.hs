@@ -205,6 +205,7 @@ ghciCommands = map mkCmd [
   ("module",    keepGoing moduleCmd,            completeSetModule),
   ("main",      keepGoing runMain,              completeFilename),
   ("print",     keepGoing printCmd,             completeExpression),
+  ("printbinds",keepGoing printBindsCmd,        noCompletion),
   ("quit",      quit,                           noCompletion),
   ("reload",    keepGoing' reloadModule,        noCompletion),
   ("reload!",   keepGoing' reloadModuleDefer,   noCompletion),
@@ -1266,7 +1267,7 @@ afterRunStmt step_here run_result = do
           Right names -> do
             show_types <- isOptionSet ShowType
             when show_types $ printTypeOfNames names
-     GHC.ExecTrace tp_info -> do
+     GHC.ExecTrace names tp_info -> printBindings names >> do
        -- FIXME: what an ugly hack!
        enqueueCommands [":continue"]
        return ()
@@ -3460,6 +3461,9 @@ completeExpression = completeQuotedWord (Just '\\') "\"" listFiles
 
 -- -----------------------------------------------------------------------------
 -- commands for debugger
+
+printBindsCmd :: GhciMonad m => String -> m ()
+printBindsCmd = noArgs undefined
 
 sprintCmd, printCmd, forceCmd :: GHC.GhcMonad m => String -> m ()
 sprintCmd = pprintClosureCommand False False
