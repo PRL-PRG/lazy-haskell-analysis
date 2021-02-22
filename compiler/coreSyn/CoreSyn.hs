@@ -263,7 +263,7 @@ data Expr b
   | Tick  (Tickish Id) (Expr b)
   | Type  Type
   | Coercion Coercion
-  deriving Data
+  deriving (Typeable, Data)
 
 -- | Type synonym for expressions that occur in function argument positions.
 -- Only 'Arg' should contain a 'Type' at top level, general 'Expr' should not
@@ -313,7 +313,7 @@ instance Ord AltCon where
 -- See Note [GHC Formalism] in coreSyn/CoreLint.hs
 data Bind b = NonRec b (Expr b)
             | Rec [(b, (Expr b))]
-  deriving Data
+  deriving (Typeable, Data)
 
 {-
 Note [Shadowing]

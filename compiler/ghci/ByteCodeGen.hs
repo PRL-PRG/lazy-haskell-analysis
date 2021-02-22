@@ -85,7 +85,7 @@ byteCodeGen :: HscEnv
             -> [TyCon]
             -> Maybe ModBreaks
             -> IO CompiledByteCode
-byteCodeGen hsc_env this_mod binds tycs mb_modBreaks
+byteCodeGen hsc_env this_mod binds tycs mb_modBreaks | trace "bytecoooooode" True
    = withTiming dflags
                 (text "ByteCodeGen"<+>brackets (ppr this_mod))
                 (const ()) $ do
@@ -157,7 +157,7 @@ coreExprToBCOs :: HscEnv
                -> Module
                -> CoreExpr
                -> IO UnlinkedBCO
-coreExprToBCOs hsc_env this_mod expr
+coreExprToBCOs hsc_env this_mod expr | trace "coreExprToBCOs" True
  = withTiming dflags
               (text "ByteCodeGen"<+>brackets (ppr this_mod))
               (const ()) $ do

@@ -227,6 +227,9 @@ data Type
 
   deriving Data.Data
 
+instance Show Type where
+  show = showSDocUnsafe . ppr
+
 instance Outputable Type where
   ppr = pprType
 

@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE BangPatterns, CPP, MagicHash, NondecreasingIndentation #-}
 {-# OPTIONS_GHC -fprof-auto-top #-}
 
@@ -179,6 +180,8 @@ import HieAst           ( mkHieFile )
 import HieTypes         ( getAsts, hie_asts, hie_module )
 import HieBin           ( readHieFile, writeHieFile , hie_file_result)
 import HieDebug         ( diffFile, validateScopes )
+import Syb
+import Literal
 
 #include "HsVersions.h"
 
@@ -1474,7 +1477,7 @@ hscInteractive :: HscEnv
                -> CgGuts
                -> ModLocation
                -> IO (Maybe FilePath, CompiledByteCode, [SptEntry])
-hscInteractive hsc_env cgguts location = do
+hscInteractive hsc_env cgguts location = trace "/\\/\\/\\ hscInteractive" $ do
     let dflags = hsc_dflags hsc_env
     let CgGuts{ -- This is the last use of the ModGuts in a compilation.
                 -- From now on, we just use the bits we need.
@@ -1489,17 +1492,26 @@ hscInteractive hsc_env cgguts location = do
         -- cg_tycons includes newtypes, for the benefit of External Core,
         -- but we don't generate any code for newtypes
 
+    -- rewrite leaf nodes to issue side-effects for tracing
+    let traced_binds = rewriteWithTrace core_binds
+
     -------------------
     -- PREPARE FOR CODE GENERATION
     -- Do saturation and convert to A-normal form
     (prepd_binds, _) <- {-# SCC "CorePrep" #-}
-                   corePrepPgm hsc_env this_mod location core_binds data_tycons
+                   corePrepPgm hsc_env this_mod location traced_binds data_tycons
     -----------------  Generate byte code ------------------
     comp_bc <- byteCodeGen hsc_env this_mod prepd_binds data_tycons mod_breaks
     ------------------ Create f-x-dynamic C-side stuff -----
     (_istub_h_exists, istub_c_exists)
         <- outputForeignStubs dflags this_mod location foreign_stubs
     return (istub_c_exists, comp_bc, spt_entries)
+
+rewriteWithTrace :: CoreProgram -> CoreProgram
+rewriteWithTrace = map (everywhere $ mkT rw)
+rw :: Expr Var -> Expr Var
+rw (Lit (LitNumber ntyp x typ)) = Lit $ LitNumber ntyp 420 typ
+rw expr = expr
 
 ------------------------------
 
@@ -1679,7 +1691,7 @@ hscDeclsWithLocation hsc_env str source linenumber = do
     hscParsedDecls hsc_env decls
 
 hscParsedDecls :: HscEnv -> [LHsDecl GhcPs] -> IO ([TyThing], InteractiveContext)
-hscParsedDecls hsc_env decls = runInteractiveHsc (trace "hscParsedDecls" hsc_env) $ do
+hscParsedDecls hsc_env decls = runInteractiveHsc (trace "/\\/\\/\\ hscParsedDecls" hsc_env) $ do
     {- Rename and typecheck it -}
     hsc_env <- getHscEnv
     tc_gblenv <- ioMsgMaybe $ tcRnDeclsi hsc_env decls
@@ -1881,8 +1893,10 @@ hscCompileCoreExpr' hsc_env srcspan ds_expr
            {- Tidy it (temporary, until coreSat does cloning) -}
          ; let tidy_expr = tidyExpr emptyTidyEnv simpl_expr
 
+         ; let traced_expr = rewrite tidy_expr
+
            {- Prepare for codegen -}
-         ; prepd_expr <- corePrepExpr dflags hsc_env tidy_expr
+         ; prepd_expr <- corePrepExpr dflags hsc_env traced_expr
 
            {- Lint if necessary -}
          ; lintInteractiveExpr "hscCompileExpr" hsc_env prepd_expr
@@ -1892,9 +1906,27 @@ hscCompileCoreExpr' hsc_env srcspan ds_expr
                      (icInteractiveModule (hsc_IC hsc_env)) prepd_expr
 
            {- link it -}
-         ; hval <- linkExpr hsc_env srcspan bcos
+         ; linkExpr hsc_env srcspan bcos }
+      where
+        rewrite :: Expr Var -> Expr Var
+        rewrite (Lam bind expr) = Lam bind $ rewrite expr
+        rewrite (Let binder expr) = Let binder $ rewrite expr
+        rewrite (Case scrutinee binder typ arms) = Case scrutinee binder typ $ map (\case
+            (altcons, vars, expr) -> (altcons, vars, rewrite expr)
+          ) arms
+        rewrite (Cast expr coe) = Cast (rewrite expr) coe
+        rewrite (Tick tick expr) = Tick tick $ rewrite expr
+        rewrite var@(Var _)   = wrapWithTrace var
+        rewrite lit@(Lit _)   = wrapWithTrace lit
+        rewrite app@(App _ _) = wrapWithTrace app
+        rewrite coe@(Coercion _) = coe
+        rewrite ty@(Type _) = ty
 
-         ; return hval }
+        wrapWithTrace :: Expr Var -> Expr Var
+        wrapWithTrace x = x
+        wrapWithTrace expr = App (App traceRef (Lit $ LitString $ bytesFS $ mkFastString "hello")) expr
+          where
+            traceRef = undefined
 
 
 {- **********************************************************************

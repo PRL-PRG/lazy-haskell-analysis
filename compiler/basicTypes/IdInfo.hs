@@ -163,6 +163,19 @@ data IdDetails
   | JoinId JoinArity           -- ^ An 'Id' for a join point taking n arguments
        -- Note [Join points] in CoreSyn
 
+instance Show IdDetails where
+  show VanillaId         = "VanillaId"
+  show (RecSelId _ _)    = "RecSelId ?"
+  show (DataConWorkId _) = "DataConWorkId ?"
+  show (DataConWrapId _) = "DataConWrapId ?"
+  show (ClassOpId _)     = "ClassOpId ?"
+  show (PrimOpId _)      = "PrimOpId ?"
+  show (FCallId _)       = "FCallId ?"
+  show (TickBoxOpId _)   = "TickBoxOpId ?"
+  show (DFunId _)        = "DFunId ?"
+  show CoVarId           = "CoVarId ?"
+  show (JoinId _)        = "JoinId ?"
+
 -- | Recursive Selector Parent
 data RecSelParent = RecSelData TyCon | RecSelPatSyn PatSyn deriving Eq
   -- Either `TyCon` or `PatSyn` depending
@@ -266,6 +279,9 @@ data IdInfo
         levityInfo      :: LevityInfo
         -- ^ when applied, will this Id ever have a levity-polymorphic type?
     }
+
+instance Show IdInfo where
+  show info = "¯\\_(ツ)_/¯"
 
 -- Setters
 

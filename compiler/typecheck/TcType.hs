@@ -523,6 +523,9 @@ superSkolemTv   = SkolemTv topTcLevel True   -- Treat this as a completely disti
                   -- The choice of level number here is a bit dodgy, but
                   -- topTcLevel works in the places that vanillaSkolemTv is used
 
+instance Show TcTyVarDetails where
+  show = showSDocUnsafe . ppr
+
 instance Outputable TcTyVarDetails where
   ppr = pprTcTyVarDetails
 

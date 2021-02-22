@@ -248,15 +248,18 @@ data Var
         idScope    :: IdScope,
         id_details :: IdDetails,        -- Stable, doesn't change
         id_info    :: IdInfo }          -- Unstable, updated by simplifier
+  deriving Show
 
 -- | Identifier Scope
 data IdScope    -- See Note [GlobalId/LocalId]
   = GlobalId
   | LocalId ExportFlag
+  deriving Show
 
 data ExportFlag   -- See Note [ExportFlag on binders]
   = NotExported   -- ^ Not exported: may be discarded as dead code.
   | Exported      -- ^ Exported: kept alive
+  deriving Show
 
 {- Note [ExportFlag on binders]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

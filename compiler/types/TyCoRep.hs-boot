@@ -1,6 +1,7 @@
 module TyCoRep where
 
 import Data.Data  ( Data )
+import GHC.Show ( Show )
 import {-# SOURCE #-} Var( Var, ArgFlag, AnonArgFlag )
 
 data Type
@@ -21,3 +22,4 @@ mkFunTy   :: AnonArgFlag -> Type -> Type -> Type
 mkForAllTy :: Var -> ArgFlag -> Type -> Type
 
 instance Data Type  -- To support Data instances in CoAxiom
+instance Show Type

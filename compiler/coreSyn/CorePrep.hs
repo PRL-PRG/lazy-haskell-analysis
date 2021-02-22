@@ -1,3 +1,8 @@
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-
 (c) The University of Glasgow, 1994-2006
 
@@ -63,6 +68,7 @@ import Data.List        ( mapAccumL )
 import Control.Monad
 import CostCentre       ( CostCentre, ccFromThisModule )
 import qualified Data.Set as S
+import PprCore (Foo(..))
 
 {-
 -- ---------------------------------------------------------------------------
@@ -211,6 +217,8 @@ corePrepExpr dflags hsc_env expr =
     initialCorePrepEnv <- mkInitialCorePrepEnv dflags hsc_env
     let new_expr = initUs_ us (cpeBodyNF initialCorePrepEnv expr)
     dumpIfSet_dyn dflags Opt_D_dump_prep "CorePrep" (ppr new_expr)
+    let x = F̂ new_expr
+    dumpIfSet_dyn dflags Opt_D_dump_prep "CorePrep show" (text $ show x)
     return new_expr
 
 corePrepTopBinds :: CorePrepEnv -> [CoreBind] -> UniqSM Floats

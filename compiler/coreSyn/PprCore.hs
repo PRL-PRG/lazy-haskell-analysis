@@ -6,13 +6,13 @@
 Printing of Core syntax
 -}
 
-{-# LANGUAGE MultiWayIf #-}
+
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module PprCore (
         pprCoreExpr, pprParendExpr,
         pprCoreBinding, pprCoreBindings, pprCoreAlt,
         pprCoreBindingWithSize, pprCoreBindingsWithSize,
-        pprRules, pprOptCo
+        pprRules, pprOptCo, Foo(..)
     ) where
 
 import GhcPrelude
@@ -36,6 +36,24 @@ import Util
 import Outputable
 import FastString
 import SrcLoc      ( pprUserRealSpan )
+
+
+fufsa :: String -> [SDoc] -> String
+fufsa s ds = showSDocUnsafe . parens $ nest 4 $ text s <+> sep ds
+
+newtype OutputableBndr b => Foo b = F̂ (Expr b)
+instance {-# OVERLAPS #-} OutputableBndr b => Show (Foo b) where
+  show (F̂ (Var      id))              = fufsa "Var"      [text $ show id                                            ]
+  show (F̂ (Lit      literal))         = fufsa "Lit"      [ppr literal                                               ]
+  show (F̂ (App      expr arg))        = fufsa "App"      [text (show $ F̂ expr) , text (show $ F̂ arg)                ]
+  show (F̂ (Lam      b expr))          = fufsa "Lam"      [ppr b                , text (show $ F̂ expr)               ]
+  show (F̂ (Let      bind expr))       = fufsa "Let"      [ppr bind             , text (show $ F̂ expr)               ]
+  show (F̂ (Case     expr b typ alts)) = fufsa "Case"     [text (show $ F̂ expr) , ppr b , ppr typ , ppr alts         ]
+  show (F̂ (Cast     expr coe))        = fufsa "Cast"     [text (show $ F̂ expr) , ppr coe                            ]
+  show (F̂ (Tick     tick expr))       = fufsa "Tick"     [ppr tick             , text (show $ F̂ expr)               ]
+  show (F̂ (Type     typ))             = fufsa "Type"     [ppr typ                                                   ]
+  show (F̂ (Coercion coe))             = fufsa "Coercion" [ppr coe                                                   ]
+
 
 {-
 ************************************************************************
@@ -123,11 +141,9 @@ ppr_binding ann (val_bdr, expr)
            , pp_bind
            ]
   where
-    pp_bind = case bndrIsJoin_maybe val_bdr of
-                Nothing -> pp_normal_bind
-                Just ar -> pp_join_bind ar
+    pp_bind = maybe pp_normal_bind pp_join_bind (bndrIsJoin_maybe val_bdr)
 
-    pp_normal_bind = hang (ppr val_bdr) 2 (equals <+> pprCoreExpr expr)
+    pp_normal_bind = hang (ppr val_bdr) 2 (equals <+> text (show $ F̂ expr))
 
       -- For a join point of join arity n, we want to print j = \x1 ... xn -> e
       -- as "j x1 ... xn = e" to differentiate when a join point returns a
@@ -147,8 +163,8 @@ ppr_binding ann (val_bdr, expr)
         lhs_bndrs = take join_arity bndrs
         rhs       = mkLams (drop join_arity bndrs) body
 
-pprParendExpr expr = ppr_expr parens expr
-pprCoreExpr   expr = ppr_expr noParens expr
+pprParendExpr = ppr_expr parens
+pprCoreExpr = ppr_expr noParens
 
 noParens :: SDoc -> SDoc
 noParens pp = pp
@@ -165,7 +181,7 @@ ppr_expr :: OutputableBndr b => (SDoc -> SDoc) -> Expr b -> SDoc
         -- an atomic value (e.g. function args)
 
 ppr_expr add_par (Var name)
- | isJoinId name               = add_par ((text "jump") <+> ppr name)
+ | isJoinId name               = add_par (text "jump" <+> ppr name)
  | otherwise                   = ppr name
 ppr_expr add_par (Type ty)     = add_par (text "TYPE:" <+> ppr ty)       -- Weird
 ppr_expr add_par (Coercion co) = add_par (text "CO:" <+> ppr co)
@@ -182,7 +198,7 @@ ppr_expr add_par expr@(Lam _ _)
     hang (text "\\" <+> sep (map (pprBndr LambdaBind) bndrs) <+> arrow)
          2 (pprCoreExpr body)
 
-ppr_expr add_par expr@(App {})
+ppr_expr add_par expr@App {}
   = sdocWithDynFlags $ \dflags ->
     case collectArgs expr of { (fun, args) ->
     let
@@ -308,7 +324,7 @@ ppr_case_pat (DataAlt dc) args
     tc = dataConTyCon dc
 
 ppr_case_pat con args
-  = ppr con <+> (fsep (map ppr_bndr args))
+  = ppr con <+> fsep (map ppr_bndr args)
   where
     ppr_bndr = pprBndr CasePatBind
 
@@ -519,12 +535,12 @@ showAttributes stuff
 
 instance Outputable UnfoldingGuidance where
     ppr UnfNever  = text "NEVER"
-    ppr (UnfWhen { ug_arity = arity, ug_unsat_ok = unsat_ok, ug_boring_ok = boring_ok })
+    ppr UnfWhen { ug_arity = arity, ug_unsat_ok = unsat_ok, ug_boring_ok = boring_ok }
       = text "ALWAYS_IF" <>
         parens (text "arity="     <> int arity    <> comma <>
                 text "unsat_ok="  <> ppr unsat_ok <> comma <>
                 text "boring_ok=" <> ppr boring_ok)
-    ppr (UnfIfGoodArgs { ug_args = cs, ug_size = size, ug_res = discount })
+    ppr UnfIfGoodArgs { ug_args = cs, ug_size = size, ug_res = discount }
       = hsep [ text "IF_ARGS",
                brackets (hsep (map int cs)),
                int size,
@@ -539,14 +555,14 @@ instance Outputable Unfolding where
   ppr NoUnfolding                = text "No unfolding"
   ppr BootUnfolding              = text "No unfolding (from boot)"
   ppr (OtherCon cs)              = text "OtherCon" <+> ppr cs
-  ppr (DFunUnfolding { df_bndrs = bndrs, df_con = con, df_args = args })
+  ppr DFunUnfolding { df_bndrs = bndrs, df_con = con, df_args = args }
        = hang (text "DFun:" <+> ptext (sLit "\\")
                 <+> sep (map (pprBndr LambdaBind) bndrs) <+> arrow)
             2 (ppr con <+> sep (map ppr args))
-  ppr (CoreUnfolding { uf_src = src
+  ppr CoreUnfolding { uf_src = src
                      , uf_tmpl=rhs, uf_is_top=top, uf_is_value=hnf
                      , uf_is_conlike=conlike, uf_is_work_free=wf
-                     , uf_expandable=exp, uf_guidance=g })
+                     , uf_expandable=exp, uf_guidance=g }
         = text "Unf" <> braces (pp_info $$ pp_rhs)
     where
       pp_info = fsep $ punctuate comma
@@ -578,12 +594,12 @@ pprRules :: [CoreRule] -> SDoc
 pprRules rules = vcat (map pprRule rules)
 
 pprRule :: CoreRule -> SDoc
-pprRule (BuiltinRule { ru_fn = fn, ru_name = name})
+pprRule BuiltinRule { ru_fn = fn, ru_name = name}
   = text "Built in rule for" <+> ppr fn <> colon <+> doubleQuotes (ftext name)
 
-pprRule (Rule { ru_name = name, ru_act = act, ru_fn = fn,
+pprRule Rule { ru_name = name, ru_act = act, ru_fn = fn,
                 ru_bndrs = tpl_vars, ru_args = tpl_args,
-                ru_rhs = rhs })
+                ru_rhs = rhs }
   = hang (doubleQuotes (ftext name) <+> ppr act)
        4 (sep [text "forall" <+>
                   sep (map (pprCoreBinder LambdaBind) tpl_vars) <> dot,
@@ -613,9 +629,9 @@ instance Outputable id => Outputable (Tickish id) where
             ppr ix,
             text ">",
             parens (hcat (punctuate comma (map ppr vars)))]
-  ppr (ProfNote { profNoteCC = cc,
+  ppr ProfNote { profNoteCC = cc,
                   profNoteCount = tick,
-                  profNoteScope = scope }) =
+                  profNoteScope = scope } =
       case (tick,scope) of
          (True,True)  -> hcat [text "scctick<", ppr cc, char '>']
          (True,False) -> hcat [text "tick<",    ppr cc, char '>']
